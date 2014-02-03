@@ -1,0 +1,143 @@
+apply plugin: 'android-library'
+
+version "1.0.0-SNAPSHOT"
+group 'com.facebook'
+
+dependencies {
+    compile 'com.android.support:support-v4:13.0.+'
+}
+
+android {
+    compileSdkVersion 19
+    buildToolsVersion "19"
+
+    defaultConfig {
+        minSdkVersion 8
+        targetSdkVersion 19
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+            res.srcDirs = ['res']
+        }
+    }
+}
+
+project.ext.outJar = 'facebook' + '-' + version + '.jar'
+
+task clearJar(type: Delete) {
+    delete 'build/libs/' + project.ext.outJar
+}
+
+task makeJar(type: Copy) {
+    from('build/bundles/release/')
+    into('build/libs/')
+    include('classes.jar')
+    rename ('classes.jar', project.ext.outJar)
+}
+
+def generatePom() {
+    def pom = pom{
+        project {
+            name 'facebook'
+            groupId project.group
+            artifactId 'aviary-cds-library'
+            version project.version
+            description 'Aviary facebook integration'
+            inceptionYear '2014'
+            url 'https://github.com/AviaryInc/AndroidCdsLibrary'
+
+            scm {
+                url                 "https://github.com/AviaryInc/AndroidCdsLibrary"
+                connection          "scm:git:git@github.com:AviaryInc/AndroidCdsLibrary.git"
+                developerConnection "scm:git:git@github.com:AviaryInc/AndroidCdsLibrary.git"
+            }
+
+            organization {
+                name 'Aviary, Inc.'
+                url 'http://aviary.com'
+            }
+
+            developers {
+                developer {
+                    id 'sephiroth74'
+                    name 'Alessandro Crugnola'
+                    email 'alessandro.crugnola@gmail.com'
+                    url 'http://blog.sephiroth.it'
+                    roles {
+                        role 'author'
+                        role 'developer'
+                    }
+                }
+                developer {
+                    id 'aneemtalukder'
+                    name 'Aneem Talukder'
+                    email 'aneem@aviary.com'
+                    roles {
+                        role 'author'
+                        role 'developer'
+                    }
+                }
+            }
+
+            repositories {
+                project.repositories.each { repo ->
+
+                    if (repo.name != 'MavenRepo' && repo.name != 'MavenLocal' && !repo.url.toString().startsWith('file:/') ) {
+                        repository {
+                            id = repo.name
+                            url = repo.url
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+task writePom {
+    ext.pomXml = file("pom.xml")
+    inputs.file(project.buildFile)
+    outputs.file(pomXml)
+    doLast {
+        generatePom().writeTo(pomXml)
+    }
+}
+
+uploadArchives {
+    repositories {
+        if( project.hasProperty('username') && project.hasProperty('password')) {
+
+            mavenDeployer {
+
+                pom = generatePom()
+
+                configuration = configurations.deployerJars
+
+                repository(url: mavenUploadServer + mavenRepo + mavenReleases){
+                    authentication(userName: username, password: password)
+                }
+
+                snapshotRepository(url: mavenUploadServer + mavenRepo + mavenSnapshot){
+                    authentication(userName: username, password: password)
+                }
+            }
+        }
+    }
+
+    doLast {
+        if( !project.hasProperty('username') || !project.hasProperty('password')) {
+            logger.error '\tError: Cannot upload artifacts, username and password missing'
+        }
+    }
+}
+
+clean.dependsOn(clearJar)
+build.dependsOn(makeJar)
+uploadArchives.dependsOn(build)
